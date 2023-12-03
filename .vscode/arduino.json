@@ -1,0 +1,8 @@
+{
+    "port": "/dev/ttyACM0",
+    "configuration": "Revision=TWATCH_BASE,PSRAM=enabled,PartitionScheme=default,UploadSpeed=2000000,DebugLevel=none,EraseFlash=none",
+    "board": "espressif:esp32:twatch",
+    "programmer": "esptool",
+    "sketch": "T-Watch_Azan.ino",
+    "output": "/tmp/arduino"
+}
