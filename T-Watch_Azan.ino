@@ -17,12 +17,12 @@ String              currentDateTime, PrayerHour, PrayerMinute;
 String              prayerNames[6] = {"Fajr", "Shurooq","Duhr","Asr","Maghrib","Isha"};
 String              daysOfWeek[7]  = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
 String              year, month, date, minute, hour;       
-uint16_t            TodaysPrayers[6], dayOfYear, dayOfWeek, currentAbsMinute, elapsedMinutes;
+int16_t             TodaysPrayers[6], dayOfYear, dayOfWeek, currentAbsMinute, elapsedMinutes;
 int16_t             xTouch = 0, yTouch = 0;
 
 void setup()
 {
-     Serial.begin(115200);
+     //Serial.begin(115200);
      watch = TTGOClass::getWatch();
      watch->begin();
      watch->openBL();
@@ -66,15 +66,17 @@ void setup()
           PrayerMinute   =    PrayerMinute.length() > 1?PrayerMinute : "0"+PrayerMinute;
           elapsedMinutes =    currentAbsMinute-TodaysPrayers[i];
 
-          if(elapsedMinutes >= -15 && elapsedMinutes < 0) {
+          if(elapsedMinutes >= -15 && elapsedMinutes < 0) {      // Silver 15 min before prayer time
                watch->tft->setTextColor(SILVER, BLACK);
                watch->motor_begin();
           }
-          else if(elapsedMinutes >= 0 && elapsedMinutes <= 60)
+          else if(elapsedMinutes >= 0 && elapsedMinutes <= 60)   // Green on prayer time and up until 60 min after
                watch->tft->setTextColor(GREEN, BLACK);
-          else if(elapsedMinutes > 60 && i < 6 && currentAbsMinute < TodaysPrayers[i+1])
+          else if(elapsedMinutes > 60 &&                                   // Orange after 60 minutes except for Isha
+               ((i < 5 && currentAbsMinute < TodaysPrayers[i+1]-15) ||     // Orange as long as before the next prayer up
+               (i == 5 && currentAbsMinute > TodaysPrayers[i])))           // Isha is orange until midnight
                watch->tft->setTextColor(ORANGE, BLACK);
-
+          
           watch->tft->drawString(prayerNames[i],0,35*i);
           watch->tft->drawString(PrayerHour + ":" + PrayerMinute,150,35*i);
      }
