@@ -18,7 +18,7 @@ String              prayerNames[6] = {"Fajr", "Shurooq","Duhr","Asr","Maghrib","
 String              daysOfWeek[7]  = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
 String              year, month, date, minute, hour;       
 int16_t             TodaysPrayers[6], dayOfYear, dayOfWeek, currentAbsMinute, elapsedMinutes;
-int16_t             xTouch = 0, yTouch = 0;
+int16_t             xTouch = 0, yTouch = 0, batteryPct;
 
 void setup()
 {
@@ -69,7 +69,8 @@ void setup()
           if(elapsedMinutes >= -15 && elapsedMinutes < 0) {      // Silver 15 min before prayer time
                watch->tft->setTextColor(SILVER, BLACK);
                watch->motor_begin();
-          }
+               watch->shake();               
+          } 
           else if(elapsedMinutes >= 0 && elapsedMinutes <= 60)   // Green on prayer time and up until 60 min after
                watch->tft->setTextColor(GREEN, BLACK);
           else if(elapsedMinutes > 60 &&                                   // Orange after 60 minutes except for Isha
@@ -85,11 +86,19 @@ void setup()
      watch->tft->setTextColor(DARK_GREY, BLACK);                      
      watch->tft->drawString(hour+":"+minute,150,35*6);
 
-     if(watch->power->getBattPercentage() < 33) {
+     batteryPct = watch->power->getBattPercentage();
+     if(watch->power->isVBUSPlug()) {
+          if(batteryPct > 99)
+               watch->tft->setTextColor(GREEN, BLACK);                      
+          else
+               watch->tft->setTextColor(ORANGE, BLACK);                      
+          watch->tft->drawString(String(batteryPct)+"%",0,35*6);
+          delay(2300);
+     } else if(batteryPct < 33) {
           watch->tft->setTextColor(RED, BLACK);                      
-          watch->tft->drawString("LOW BATT.",0,35*6);
-          delay(1500);
-     } 
+          watch->tft->drawString(String(batteryPct)+"%",0,35*6);
+          delay(1300);
+     }   
 }
 
 void lightPowerOff()
@@ -114,9 +123,9 @@ void loop()
      watch->tft->drawString(hour+(counterToPowOff%2?':':' ')+minute,150,35*6);
      
      if(counterToPowOff < 3)
-          watch->tft->drawString(daysOfWeek[dayOfWeek],0,35*6);
-     else if(counterToPowOff < 6)
           watch->tft->drawString(date+"-"+month,0,35*6);
+     else if(counterToPowOff < 6)
+          watch->tft->drawString(daysOfWeek[dayOfWeek],0,35*6);
      
      delay(1000);
 
