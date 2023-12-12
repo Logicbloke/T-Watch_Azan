@@ -16,45 +16,15 @@ byte                counterToPowOff = 1;
 bool                irq = false;
 String              currentDateTime, PrayerHour, PrayerMinute;
 String              prayerNames[6] = {"Fajr", "Shurooq","Duhr","Asr","Maghrib","Isha"};
-String              daysOfWeek[7]  = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+String              daysOfWeek[7]  = {"Mon.", "Tue.", "Wed.", "Thu.", "Fri.", "Sat.", "Sun."};
 uint8_t             IqamaOffset[6] = {30,10,10,10,5,10};
 String              year, month, date, minute, hour;       
 int16_t             TodaysPrayers[6], dayOfYear, dayOfWeek, currentAbsMinute, elapsedMinutes, minutesToNext;
 int16_t             xTouch = 0, yTouch = 0, batteryPct;
 
-void setup()
+
+void showEverything()
 {
-     //Serial.begin(115200);
-     watch = TTGOClass::getWatch();
-     watch->begin();
-     watch->openBL();
-
-     watch->power->adc1Enable(AXP202_VBUS_VOL_ADC1 | 
-     AXP202_VBUS_CUR_ADC1 | AXP202_BATT_CUR_ADC1 | 
-     AXP202_BATT_VOL_ADC1, true);  
-
-     pinMode(AXP202_INT, INPUT_PULLUP);
-     attachInterrupt(AXP202_INT, [] {irq = true;}, FALLING);
-    
-     watch->power->enableIRQ(AXP202_PEK_SHORTPRESS_IRQ, true);
-     watch->power->clearIRQ();
-
-     watch->tft->setTextSize(1);    
-     watch->tft->setFreeFont(&FreeSans18pt7b);                           
-     
-
-     currentDateTime = watch->rtc->formatDateTime(PCF_TIMEFORMAT_YYYY_MM_DD_H_M_S); 
-     year      = currentDateTime.substring(0,4);
-     month     = currentDateTime.substring(5,7);
-     date      = currentDateTime.substring(8,10);
-     hour      = currentDateTime.substring(11,13);
-     minute    = currentDateTime.substring(14,16);
-
-     month     = month.length()>1?month:"0"+month;
-     date      = date.length()>1?date:"0"+date;
-     hour      = hour.length()>1?hour:"0"+hour;
-     minute    = minute.length()>1?minute:"0"+minute;
-        
      currentAbsMinute = (hour).toInt()*60+(minute).toInt();
      dayOfYear = getDayOfYear((date).toInt(), (month).toInt(), (year).toInt());
      dayOfWeek = getWeekDay((date).toInt(), (month).toInt(), (year).toInt());
@@ -104,9 +74,50 @@ void setup()
      }   
 }
 
+void setup()
+{
+     //Serial.begin(115200);
+     watch = TTGOClass::getWatch();
+     watch->begin();
+     watch->openBL();
+
+     watch->power->adc1Enable(AXP202_VBUS_VOL_ADC1 | 
+     AXP202_VBUS_CUR_ADC1 | AXP202_BATT_CUR_ADC1 | 
+     AXP202_BATT_VOL_ADC1, true);  
+
+     pinMode(AXP202_INT, INPUT_PULLUP);
+     attachInterrupt(AXP202_INT, [] {irq = true;}, FALLING);
+    
+     watch->power->enableIRQ(AXP202_PEK_SHORTPRESS_IRQ, true);
+     watch->power->clearIRQ();
+
+     watch->tft->setTextSize(1);    
+     watch->tft->setFreeFont(&FreeSans18pt7b);                           
+     
+
+     currentDateTime = watch->rtc->formatDateTime(PCF_TIMEFORMAT_YYYY_MM_DD_H_M_S); 
+     year      = currentDateTime.substring(0,4);
+     month     = currentDateTime.substring(5,7);
+     date      = currentDateTime.substring(8,10);
+     hour      = currentDateTime.substring(11,13);
+     minute    = currentDateTime.substring(14,16);
+
+     month     = month.length()>1?month:"0"+month;
+     date      = date.length()>1?date:"0"+date;
+     hour      = hour.length()>1?hour:"0"+hour;
+     minute    = minute.length()>1?minute:"0"+minute;
+
+     showEverything();
+}
+
+void wakeUp()
+{
+     watch->displayWakeup();
+     watch->openBL();
+}
+
 void lightPowerOff()
 {
-     watch->tft->fillScreen(TFT_BLACK);
      watch->displaySleep();
      watch->closeBL();  
 }
@@ -125,6 +136,9 @@ void loop()
      watch->tft->setTextColor(DARK_GREY, BLACK);                      
      watch->tft->drawString(hour+(counterToPowOff%2?':':' ')+minute,150,35*6);
      
+     if(dayOfWeek == 4)  // It's Friday!
+          watch->tft->setTextColor(GOLD, BLACK);                      
+
      if(counterToPowOff < 3)
           watch->tft->drawString(daysOfWeek[dayOfWeek],0,35*6);
      else if(counterToPowOff < 6)
@@ -137,11 +151,14 @@ void loop()
           watch->power->readIRQ();
           if (watch->power->isPEKShortPressIRQ()) {
                watch->power->clearIRQ();
-               counterToPowOff = 19;
+               if(watch->bl->isOn())
+                    counterToPowOff = 19;    // Turn off
+               else   
+                    counterToPowOff = -1;    // Turn on
           }
      watch->power->clearIRQ();
      }
-  
+     
      // Reset sleep timer if screen touched
      if(watch->getTouch(xTouch, yTouch)) {
           counterToPowOff = xTouch = yTouch = 0;
@@ -149,5 +166,7 @@ void loop()
           
      // Put to sleep if time elapsed     
      if (++counterToPowOff > 19)                          
-               powerOff(); 
+               powerOff();
+     else if(!counterToPowOff)               // Will become 0 if just woken up
+               wakeUp();
 }
