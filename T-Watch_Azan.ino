@@ -78,7 +78,7 @@ void setup()
                watch->tft->setTextColor(SILVER, BLACK);
           else if(elapsedMinutes > IqamaOffset[i] && elapsedMinutes <= 60)           // Green for 1 hour after the azan     
                watch->tft->setTextColor(GREEN, BLACK);
-          else if(elapsedMinutes > 60 && (minutesToNext < -15 || minutesToNext > 0))  // Orange until next prayer or until midnight for Isha                               
+          else if(elapsedMinutes > 60 && (minutesToNext < -15 || i==5))  // Orange until next prayer or until midnight for Isha                               
                watch->tft->setTextColor(ORANGE, BLACK);
           
           watch->tft->drawString(prayerNames[i],0,35*i);
