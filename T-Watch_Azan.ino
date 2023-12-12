@@ -9,6 +9,7 @@
 #define ORANGE      0xFDA0
 #define RED         0xF800
 #define SILVER      0xC618
+#define GOLD        0xFEA0
 
 TTGOClass           *watch  = NULL;
 byte                counterToPowOff = 1;
@@ -16,8 +17,9 @@ bool                irq = false;
 String              currentDateTime, PrayerHour, PrayerMinute;
 String              prayerNames[6] = {"Fajr", "Shurooq","Duhr","Asr","Maghrib","Isha"};
 String              daysOfWeek[7]  = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+uint8_t             IqamaOffset[6] = {30,10,10,10,5,10};
 String              year, month, date, minute, hour;       
-int16_t             TodaysPrayers[6], dayOfYear, dayOfWeek, currentAbsMinute, elapsedMinutes;
+int16_t             TodaysPrayers[6], dayOfYear, dayOfWeek, currentAbsMinute, elapsedMinutes, minutesToNext;
 int16_t             xTouch = 0, yTouch = 0, batteryPct;
 
 void setup()
@@ -65,17 +67,18 @@ void setup()
           PrayerMinute   =    String(TodaysPrayers[i]%60);
           PrayerMinute   =    PrayerMinute.length() > 1?PrayerMinute : "0"+PrayerMinute;
           elapsedMinutes =    currentAbsMinute-TodaysPrayers[i];
+          minutesToNext  =    currentAbsMinute-TodaysPrayers[(i+1)%6];
 
-          if(elapsedMinutes >= -15 && elapsedMinutes < 0) {      // Silver 15 min before prayer time
-               watch->tft->setTextColor(SILVER, BLACK);
+          if(elapsedMinutes >= -15 && elapsedMinutes < 0) {      // Gold 15 min before prayer time
+               watch->tft->setTextColor(GOLD, BLACK);
                watch->motor_begin();
                watch->shake();               
           } 
-          else if(elapsedMinutes >= 0 && elapsedMinutes <= 60)   // Green on prayer time and up until 60 min after
+          else if(elapsedMinutes >= 0 && elapsedMinutes <= IqamaOffset[i])           // Silver between azan and iqama
+               watch->tft->setTextColor(SILVER, BLACK);
+          else if(elapsedMinutes > IqamaOffset[i] && elapsedMinutes <= 60)           // Green for 1 hour after the azan     
                watch->tft->setTextColor(GREEN, BLACK);
-          else if(elapsedMinutes > 60 &&                                   // Orange after 60 minutes except for Isha
-               ((i < 5 && currentAbsMinute < TodaysPrayers[i+1]-15) ||     // Orange as long as before the next prayer up
-               (i == 5 && currentAbsMinute > TodaysPrayers[i])))           // Isha is orange until midnight
+          else if(elapsedMinutes > 60 && (minutesToNext < -15 || minutesToNext > 0))  // Orange until next prayer or until midnight for Isha                               
                watch->tft->setTextColor(ORANGE, BLACK);
           
           watch->tft->drawString(prayerNames[i],0,35*i);
@@ -93,11 +96,11 @@ void setup()
           else
                watch->tft->setTextColor(ORANGE, BLACK);                      
           watch->tft->drawString(String(batteryPct)+"%",0,35*6);
-          delay(2300);
+          delay(3001);
      } else if(batteryPct < 33) {
           watch->tft->setTextColor(RED, BLACK);                      
           watch->tft->drawString(String(batteryPct)+"%",0,35*6);
-          delay(1300);
+          delay(1501);
      }   
 }
 
@@ -123,9 +126,9 @@ void loop()
      watch->tft->drawString(hour+(counterToPowOff%2?':':' ')+minute,150,35*6);
      
      if(counterToPowOff < 3)
-          watch->tft->drawString(date+"-"+month,0,35*6);
-     else if(counterToPowOff < 6)
           watch->tft->drawString(daysOfWeek[dayOfWeek],0,35*6);
+     else if(counterToPowOff < 6)
+          watch->tft->drawString(date+"-"+month,0,35*6);
      
      delay(1000);
 
@@ -134,7 +137,7 @@ void loop()
           watch->power->readIRQ();
           if (watch->power->isPEKShortPressIRQ()) {
                watch->power->clearIRQ();
-               counterToPowOff = 9;
+               counterToPowOff = 19;
           }
      watch->power->clearIRQ();
      }
@@ -145,6 +148,6 @@ void loop()
      }
           
      // Put to sleep if time elapsed     
-     if (++counterToPowOff > 9)                          
+     if (++counterToPowOff > 19)                          
                powerOff(); 
 }
