@@ -13,19 +13,19 @@
 
 TTGOClass           *watch  = NULL;
 byte                counterToPowOff = 1;
-bool                irq = false;
+bool                irq = false, goToSleep = false;
 String              currentDateTime, PrayerHour, PrayerMinute;
+String              year, month, date, minute, hour;       
 String              prayerNames[6] = {"Fajr", "Shurooq","Duhr","Asr","Maghrib","Isha"};
 String              daysOfWeek[7]  = {"Mon.", "Tue.", "Wed.", "Thu.", "Fri.", "Sat.", "Sun."};
 uint8_t             IqamaOffset[6] = {30,10,10,10,5,10};
-String              year, month, date, minute, hour;       
-int16_t             TodaysPrayers[6], dayOfYear, dayOfWeek, currentAbsMinute, elapsedMinutes, minutesToNext;
+uint16_t            currentAbsMinute;
+int16_t             TodaysPrayers[6], dayOfYear, dayOfWeek, elapsedMinutes, minutesToNext;
 int16_t             xTouch = 0, yTouch = 0, batteryPct;
 
 
 void showEverything()
 {
-     currentAbsMinute = (hour).toInt()*60+(minute).toInt();
      dayOfYear = getDayOfYear((date).toInt(), (month).toInt(), (year).toInt());
      dayOfWeek = getWeekDay((date).toInt(), (month).toInt(), (year).toInt());
 
@@ -44,8 +44,10 @@ void showEverything()
                watch->motor_begin();
                watch->shake();               
           } 
-          else if(elapsedMinutes >= 0 && elapsedMinutes <= IqamaOffset[i])           // Silver between azan and iqama
+          else if(elapsedMinutes >= 0 && elapsedMinutes <= IqamaOffset[i]){           // Silver between azan and iqama
                watch->tft->setTextColor(SILVER, BLACK);
+               goToSleep = true;
+          }
           else if(elapsedMinutes > IqamaOffset[i] && elapsedMinutes <= 60)           // Green for 1 hour after the azan     
                watch->tft->setTextColor(GREEN, BLACK);
           else if(elapsedMinutes > 60 && (minutesToNext < -15 || i==5))  // Orange until next prayer or until midnight for Isha                               
@@ -74,6 +76,22 @@ void showEverything()
      }   
 }
 
+void refreshTime()
+{
+     currentDateTime = watch->rtc->formatDateTime(PCF_TIMEFORMAT_YYYY_MM_DD_H_M_S); 
+     year      = currentDateTime.substring(0,4);
+     month     = currentDateTime.substring(5,7);
+     date      = currentDateTime.substring(8,10);
+     hour      = currentDateTime.substring(11,13);
+     minute    = currentDateTime.substring(14,16);
+
+     month     = month.length()>1?month:"0"+month;
+     date      = date.length()>1?date:"0"+date;
+     hour      = hour.length()>1?hour:"0"+hour;
+     minute    = minute.length()>1?minute:"0"+minute;
+     currentAbsMinute = (hour).toInt()*60+(minute).toInt();
+}
+
 void setup()
 {
      //Serial.begin(115200);
@@ -94,19 +112,7 @@ void setup()
      watch->tft->setTextSize(1);    
      watch->tft->setFreeFont(&FreeSans18pt7b);                           
      
-
-     currentDateTime = watch->rtc->formatDateTime(PCF_TIMEFORMAT_YYYY_MM_DD_H_M_S); 
-     year      = currentDateTime.substring(0,4);
-     month     = currentDateTime.substring(5,7);
-     date      = currentDateTime.substring(8,10);
-     hour      = currentDateTime.substring(11,13);
-     minute    = currentDateTime.substring(14,16);
-
-     month     = month.length()>1?month:"0"+month;
-     date      = date.length()>1?date:"0"+date;
-     hour      = hour.length()>1?hour:"0"+hour;
-     minute    = minute.length()>1?minute:"0"+minute;
-
+     refreshTime();     
      showEverything();
 }
 
@@ -118,6 +124,7 @@ void wakeUp()
 
 void lightPowerOff()
 {
+     goToSleep = false;
      watch->displaySleep();
      watch->closeBL();  
 }
@@ -133,16 +140,29 @@ void powerOff()
 
 void loop()
 {
-     watch->tft->setTextColor(DARK_GREY, BLACK);                      
-     watch->tft->drawString(hour+(counterToPowOff%2?':':' ')+minute,150,35*6);
-     
-     if(dayOfWeek == 4)  // It's Friday!
-          watch->tft->setTextColor(GOLD, BLACK);                      
+     refreshTime();
 
-     if(counterToPowOff < 3)
-          watch->tft->drawString(daysOfWeek[dayOfWeek],0,35*6);
-     else if(counterToPowOff < 6)
-          watch->tft->drawString(date+"-"+month,0,35*6);
+     if(watch->bl->isOn()){
+          watch->tft->setTextColor(DARK_GREY, BLACK);                      
+          watch->tft->drawString(hour+(counterToPowOff%2?':':' ')+minute,150,35*6);
+     
+          if(dayOfWeek == 4)  // It's Friday!
+               watch->tft->setTextColor(GOLD, BLACK);                      
+
+          if(counterToPowOff < 3)
+               watch->tft->drawString(daysOfWeek[dayOfWeek],0,35*6);
+          else if(counterToPowOff < 6)
+               watch->tft->drawString(date+"-"+month,0,35*6);
+     } else {
+          for(int p=0; p<6; p++)
+               if(currentAbsMinute == TodaysPrayers[p]) {
+                    watch->motor_begin();
+                    watch->shake();
+                    wakeUp();
+                    break;
+               }
+     }
+
      
      delay(1000);
 
@@ -165,7 +185,10 @@ void loop()
      }
           
      // Put to sleep if time elapsed     
-     if (++counterToPowOff > 19)                          
+     if (++counterToPowOff > 19)    
+          if(goToSleep)
+               lightPowerOff();
+          else                      
                powerOff();
      else if(!counterToPowOff)               // Will become 0 if just woken up
                wakeUp();
