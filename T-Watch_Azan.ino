@@ -18,7 +18,7 @@ String              currentDateTime, PrayerHour, PrayerMinute;
 String              year, month, date, minute, hour;       
 String              prayerNames[6] = {"Fajr", "Shurooq","Duhr","Asr","Maghrib","Isha"};
 String              daysOfWeek[7]  = {"Mon.", "Tue.", "Wed.", "Thu.", "Fri.", "Sat.", "Sun."};
-uint8_t             IqamaOffset[6] = {30,10,10,10,5,10};
+uint8_t             IqamaOffset[6] = {30,10,10,10,5,10}, highlighted = -1;
 uint16_t            currentAbsMinute;
 int16_t             TodaysPrayers[6], dayOfYear, dayOfWeek, elapsedMinutes, minutesToNext;
 int16_t             xTouch = 0, yTouch = 0, batteryPct;
@@ -28,6 +28,7 @@ void showEverything()
 {
      dayOfYear = getDayOfYear((date).toInt(), (month).toInt(), (year).toInt());
      dayOfWeek = getWeekDay((date).toInt(), (month).toInt(), (year).toInt());
+     highlighted = -1;
 
      for(int i=0; i<6; i++){
           watch->tft->setTextColor(DARK_GREY, BLACK);   // FOREGROUND, BACKGROUND
@@ -42,19 +43,35 @@ void showEverything()
           if(elapsedMinutes >= -15 && elapsedMinutes < 0) {      // Gold 15 min before prayer time
                watch->tft->setTextColor(GOLD, BLACK);
                watch->motor_begin();
-               watch->shake();               
+               watch->shake();     
+               highlighted = i;          
           } 
-          else if(elapsedMinutes >= 0 && elapsedMinutes <= IqamaOffset[i]){           // Silver between azan and iqama
+          else if(elapsedMinutes >= 0 && elapsedMinutes <= IqamaOffset[i]){     // Silver between azan and iqama
                watch->tft->setTextColor(SILVER, BLACK);
                goToSleep = true;
+               highlighted = i; 
           }
-          else if(elapsedMinutes > IqamaOffset[i] && elapsedMinutes <= 60)           // Green for 1 hour after the azan     
+          else if(elapsedMinutes > IqamaOffset[i] && elapsedMinutes <= 60){     // Green for 1 hour after the azan     
                watch->tft->setTextColor(GREEN, BLACK);
-          else if(elapsedMinutes > 60 && (minutesToNext < -15 || i==5))  // Orange until next prayer or until midnight for Isha                               
+               highlighted = i;
+          }
+          else if(elapsedMinutes > 60 && (i == 5 || minutesToNext < -15)){      // Orange until next prayer or until midnight for Isha                               
                watch->tft->setTextColor(ORANGE, BLACK);
-          
+               highlighted = i;
+          }
+
           watch->tft->drawString(prayerNames[i],0,35*i);
           watch->tft->drawString(PrayerHour + ":" + PrayerMinute,150,35*i);
+     }
+
+     // Adaptive brightness
+     switch(highlighted) {
+          case 0: watch->setBrightness(64);  break;
+          case 1: watch->setBrightness(128); break;
+          case 2: watch->setBrightness(255); break;
+          case 3: watch->setBrightness(222); break;  
+          case 4: watch->setBrightness(128); break;
+          case 5: watch->setBrightness(64);  break;
      }
 
      // watch->tft->setFreeFont(&FreeSans12pt7b);    
@@ -94,7 +111,7 @@ void refreshTime()
 
 void setup()
 {
-     //Serial.begin(115200);
+     Serial.begin(115200);
      watch = TTGOClass::getWatch();
      watch->begin();
      watch->openBL();
@@ -150,9 +167,9 @@ void loop()
                watch->tft->setTextColor(GOLD, BLACK);                      
 
           if(counterToPowOff < 3)
-               watch->tft->drawString(daysOfWeek[dayOfWeek],0,35*6);
+               watch->tft->drawString(daysOfWeek[dayOfWeek]+"   ",0,35*6);
           else if(counterToPowOff < 6)
-               watch->tft->drawString(date+"-"+month,0,35*6);
+               watch->tft->drawString(date+"-"+month+"   ",0,35*6);
      } else {
           for(int p=0; p<6; p++)
                if(currentAbsMinute == TodaysPrayers[p]) {
@@ -163,8 +180,7 @@ void loop()
                }
      }
 
-     
-     delay(1000);
+     delay(1000);       
 
      if(irq) { // Poweroff on button press
           irq = false;
@@ -172,7 +188,7 @@ void loop()
           if (watch->power->isPEKShortPressIRQ()) {
                watch->power->clearIRQ();
                if(watch->bl->isOn())
-                    counterToPowOff = 19;    // Turn off
+                    counterToPowOff = 9;    // Turn off
                else   
                     counterToPowOff = -1;    // Turn on
           }
@@ -185,11 +201,8 @@ void loop()
      }
           
      // Put to sleep if time elapsed     
-     if (++counterToPowOff > 19)    
-          if(goToSleep)
-               lightPowerOff();
-          else                      
-               powerOff();
+     if (++counterToPowOff > 9)    
+          if(goToSleep) lightPowerOff(); else powerOff();
      else if(!counterToPowOff)               // Will become 0 if just woken up
                wakeUp();
 }
