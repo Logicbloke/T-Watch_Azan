@@ -30,9 +30,12 @@ void showEverything()
      dayOfWeek = getWeekDay((date).toInt(), (month).toInt(), (year).toInt());
      highlighted = -1;
 
+     // Loading prayers of the day
+     for(int i=0; i<6; i++)
+          TodaysPrayers[i] = PrayerTimes[dayOfYear][i];
+          
      for(int i=0; i<6; i++){
           watch->tft->setTextColor(DARK_GREY, BLACK);   // FOREGROUND, BACKGROUND
-          TodaysPrayers[i] = PrayerTimes[dayOfYear][i];
           PrayerHour     =    String(TodaysPrayers[i]/60);
           PrayerHour     =    PrayerHour.length() > 1?PrayerHour : "0"+PrayerHour;
           PrayerMinute   =    String(TodaysPrayers[i]%60);
@@ -111,7 +114,7 @@ void refreshTime()
 
 void setup()
 {
-     Serial.begin(115200);
+     //Serial.begin(115200);
      watch = TTGOClass::getWatch();
      watch->begin();
      watch->openBL();
