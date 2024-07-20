@@ -170,7 +170,7 @@ void loop()
                watch->tft->setTextColor(GOLD, BLACK);                      
 
           if(counterToPowOff < 3)
-               watch->tft->drawString(daysOfWeek[dayOfWeek]+"   ",0,35*6);
+               watch->tft->drawString(daysOfWeek[dayOfWeek]+"    ",0,35*6);
           else if(counterToPowOff < 6)
                watch->tft->drawString(date+"-"+month+"   ",0,35*6);
      } else {
