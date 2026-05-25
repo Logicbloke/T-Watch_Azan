@@ -1,6 +1,7 @@
 #include "config.h"
-#include "PrayerTimes.h"     
-#include "DateHelper.h"     
+#include "PrayerCalc.h"
+#include "DateHelper.h"
+#include "Location.h"
 
 // RGB565 Colors
 #define BLACK       0x0000
@@ -22,6 +23,8 @@ uint8_t             IqamaOffset[6] = {30,10,10,10,5,10}, highlighted = -1;
 uint16_t            currentAbsMinute;
 int16_t             TodaysPrayers[6], dayOfYear, dayOfWeek, elapsedMinutes, minutesToNext;
 int16_t             xTouch = 0, yTouch = 0, batteryPct;
+int16_t             lastCalcDay = -1;                 // recompute prayers only on change
+double              lastCalcLat = 999, lastCalcLon = 999;
 
 
 void showEverything()
@@ -30,10 +33,16 @@ void showEverything()
      dayOfWeek = getWeekDay((date).toInt(), (month).toInt(), (year).toInt());
      highlighted = -1;
 
-     // Loading prayers of the day
-     for(int i=0; i<6; i++)
-          TodaysPrayers[i] = PrayerTimes[dayOfYear][i];
-          
+     // Compute today's prayers from the cached location, only when the day or
+     // location changes (avoids running the trig every second).
+     if(dayOfYear != lastCalcDay || gLat != lastCalcLat || gLon != lastCalcLon) {
+          int pt[6];
+          computePrayerTimes(year.toInt(), month.toInt(), date.toInt(),
+                             gLat, gLon, effectiveTZ(), pt);
+          for(int i=0; i<6; i++) TodaysPrayers[i] = (int16_t)pt[i];
+          lastCalcDay = dayOfYear; lastCalcLat = gLat; lastCalcLon = gLon;
+     }
+
      for(int i=0; i<6; i++){
           watch->tft->setTextColor(DARK_GREY, BLACK);   // FOREGROUND, BACKGROUND
           PrayerHour     =    String(TodaysPrayers[i]/60);
@@ -126,13 +135,21 @@ void setup()
      pinMode(AXP202_INT, INPUT_PULLUP);
      attachInterrupt(AXP202_INT, [] {irq = true;}, FALLING);
     
-     watch->power->enableIRQ(AXP202_PEK_SHORTPRESS_IRQ, true);
+     // Short press = toggle screen; long press = re-run location setup.
+     // VERIFY: AXP202 long-press may also drive hardware power-off depending on
+     // the configured PEK long-press time; if it powers off instead of firing
+     // the IRQ, configure the AXP long-press/shutdown time or use a touch gesture.
+     watch->power->enableIRQ(AXP202_PEK_SHORTPRESS_IRQ | AXP202_PEK_LONGPRESS_IRQ, true);
      watch->power->clearIRQ();
 
-     watch->tft->setTextSize(1);    
-     watch->tft->setFreeFont(&FreeSans18pt7b);                           
-     
-     refreshTime();     
+     watch->tft->setTextSize(1);
+     watch->tft->setFreeFont(&FreeSans18pt7b);
+
+     refreshTime();
+     loadLocation();                          // restore cached lat/lon (or default)
+     if(!locationKnown) enterLocationSetup();  // first boot: acquire via GPS (V2) / WiFi (V3)
+     refreshTime();                           // RTC may have just been synced
+     watch->tft->fillScreen(BLACK);
      showEverything();
 }
 
@@ -185,15 +202,22 @@ void loop()
 
      delay(1000);       
 
-     if(irq) { // Poweroff on button press
+     if(irq) { // Power button
           irq = false;
           watch->power->readIRQ();
           if (watch->power->isPEKShortPressIRQ()) {
-               watch->power->clearIRQ();
                if(watch->bl->isOn())
                     counterToPowOff = 9;    // Turn off
-               else   
+               else
                     counterToPowOff = -1;    // Turn on
+          }
+          if (watch->power->isPEKLongtPressIRQ()) {   // long press: re-run location setup
+               watch->power->clearIRQ();
+               enterLocationSetup();
+               watch->tft->fillScreen(BLACK);
+               refreshTime();
+               showEverything();
+               counterToPowOff = 0;
           }
      watch->power->clearIRQ();
      }
